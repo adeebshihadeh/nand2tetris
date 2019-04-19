@@ -16,7 +16,7 @@
   // start at top
   @KBD
   D=A
-  @SCREEN_CUR
+  @CUR_SCREEN
   M=D
 
   // kbd state can change while writing to screen, so store in RAM
@@ -28,22 +28,26 @@
   D;JEQ
   @COLOR
   M=!M
-(FILL_SCREEN)
-  // check if we've written whole buffer
-  @SCREEN_CUR
-  D=M
-  @SCREEN
-  D=D-A
-  @LOOP
-  D;JLT
 
-  @COLOR
-  D=M
-  @SCREEN_CUR
-  M=M-1 // decrement
-  A=M
-  M=D
+  (FILL_SCREEN)
+    // check if we've written to the whole buffer
+    @CUR_SCREEN
+    D=M
+    @SCREEN
+    D=D-A
+    @LOOP
+    D;JLT
 
-  @FILL_SCREEN
-  0;JMP
+    @COLOR
+    D=M
+    @CUR_SCREEN
+    M=M-1 // decrement
+    A=M
+    M=D
+
+    @FILL_SCREEN
+    0;JMP
+
+@LOOP
+0;JMP
 
