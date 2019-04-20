@@ -13,7 +13,7 @@
 
 
 (LOOP)
-  // start at top
+  // screen buffer goes from @SCREEN to @KBD
   @KBD
   D=A
   @CUR_SCREEN
