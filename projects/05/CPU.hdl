@@ -39,6 +39,7 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
+      // D & A registers
       Mux16(a=instruction, b=aluOut, sel=instruction[15], out=aRegIn); // A or C instruction?
       Not(in=instruction[15], out=aInstruction);
       Or(a=aInstruction, b=instruction[5], out=loadA);
@@ -47,9 +48,13 @@ CHIP CPU {
       And(a=instruction[4], b=instruction[15], out=loadD);
       DRegister(in=aluOut, load=loadD, out=dRegOut);
 
+      // ALU
       Mux16(a=aRegOut, b=inM, sel=instruction[12], out=aluIn); // A or M
       ALU(x=dRegOut, y=aluIn, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=aluOut, zr=aluZr, ng=aluNg);
 
+      Or16(a=aluOut, b=aluOut, out=outM); // copy aluOut to outM
+      And(a=instruction[3], b=instruction[15], out=writeM);
+      Or16(a=aRegOut, b=aRegOut, out[0..14]=addressM); // copy aRegOut to addressM
 
       // check if jump conditions are satisfied
       And(a=instruction[1], b=aluZr, out=jEqual);
@@ -66,9 +71,5 @@ CHIP CPU {
       // program counter
       Not(in=pcLoad, out=pcInc); // inc if not loading
       PC(in=aRegOut, load=pcLoad, inc=pcInc, reset=reset, out[0..14]=pc);
-
-      Or16(a=aluOut, b=aluOut, out=outM);
-      And(a=instruction[3], b=instruction[15], out=writeM);
-      Or16(a=aRegOut, b=aRegOut, out[0..14]=addressM);
 }
 
