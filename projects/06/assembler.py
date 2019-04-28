@@ -6,25 +6,40 @@ import sys
 def str_int(n):
   return str(int(n))
 
-# remove any irrelevant junk
-def sanitize(asm):
-  ret = list()
-  for l in asm:
-    l = l.strip()
-    l = l.split("//")[0] # strip comments
-    if not len(l): continue # ignore blank lines
-    if "(" in l: continue # ignore labels for now
-    ret.append(l.strip())
+def build_symbol_table(asm):
+  ret = {"SP": 0, "LCL": 1, "ARG": 2, "THIS": 3, "THAT": 4, "SCREEN": 16384,
+          "KBD": 24576}
+  ret.update({("R" + str(n)): n for n in range(16)})
+  labels = [l.split("(")[1].split(")")[0] for l in asm if "(" in l]
+
+  idx, addr = 0, 16
+  for i in asm:
+    if "(" in i:
+      ret[i.split("(")[1].split(")")[0]] = idx
+    else:
+      if "@" in i and not i[i.index("@")+1].isdigit():
+        sym = i.split("@")[1]
+        if sym not in ret and sym not in labels:
+          ret[sym] = addr
+          addr += 1
+      idx += 1
   return ret
 
 # hack asm to binary
 def assemble(asm):
+  # sanitize asm input for comments, whitespace, etc.
+  asm = [l.strip().split("//")[0] for l in asm]
+  asm = list(filter(lambda x : len(x), asm))
+  st = build_symbol_table(asm)
+
   ret = list()
-  for i in sanitize(asm):
+  for i in asm:
+    # skip label lines
+    if "(" in i: continue
+
     if "@" in i: # a instruction
-      # TODO: handle symbols
-      if i[i.index("@")+1].isalpha():
-        continue
+      if not i[i.index("@")+1].isdigit():
+        val = st[i.split("@")[1]]
       else: # constant
         val = int(i.split("@")[1])
       ret.append("0" + bin(val)[2:].zfill(15))
@@ -36,7 +51,6 @@ def assemble(asm):
         # no need to distinguish between A and M for these bits
         eq = i.split("=")[-1].split(";")[0].replace("M", "A")
 
-        # TODO: make c2, c4, & c6 cleaner
         comp = ""
         comp += str_int("D" not in eq) # zero x
         comp += str_int(not (eq == "0" or ("D" in eq and len(eq) <= 2) or
