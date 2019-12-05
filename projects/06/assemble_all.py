@@ -6,7 +6,7 @@ from subprocess import check_output
 if __name__ == "__main__":
   af = check_output("find * | grep .asm", shell=True).decode().split("\n")[:-1]
   for f in af:
-    ff = f.replace(".asm", ".hack").split("/")[-1]
+    ff = f.replace(".asm", ".hack")
     try:
       print(f"assembling {f}")
       check_output(f"./assembler.py {f} > {ff}", shell=True)
