@@ -3,8 +3,6 @@
 import os
 import sys
 
-# VM translator, .vm -> .asm
-
 class Parser:
   C_ARITHMETIC = 0
   C_PUSH = 1
@@ -124,11 +122,12 @@ class CodeWriter:
       ret += "D=A\n"
       ret += self.PUSH_D
     else:
-      if seg in ("temp"):
-        ret += "@R%d\n" % (idx + 5) # temp starts at R5
+      if seg in ("temp", "pointer", "static"):
+        offset = {"temp": 5, "pointer": 3, "static": 16}.get(seg)
+        ret += "@R%d\n" % (idx + offset)
 
-        # HACK: make thisk cleaner
-        ret += "D=A\n@ADDR\nM=D\n"
+        # HACK: make this cleaner
+        ret += "D=A\n@XXX\nM=D\n"
       else:
         # optimize and skip this if idx is 0?
         ret += "@%d\n" % idx
@@ -137,15 +136,15 @@ class CodeWriter:
         s = {"local": "LCL", "this": "THIS", "that": "THAT", "argument": "ARG"}.get(seg)
         ret += "@%s\n" % s
         ret += "D=M+D\n"
-        ret += "@ADDR\n"
+        ret += "@XXX\n"
         ret += "M=D\n"
 
       if cmd == Parser.C_POP:
         ret += self.POP_INTO_D
-        ret += "@ADDR\nA=M\n"
+        ret += "@XXX\nA=M\n"
         ret += "M=D\n"
       else:
-        ret += "@ADDR\nA=M\n"
+        ret += "@XXX\nA=M\n"
         ret += "D=M\n"
         ret += self.PUSH_D
 
@@ -172,13 +171,9 @@ def translate(in_fn, out_fn):
   cw.close()
 
 if __name__ == "__main__":
-
   if len(sys.argv) != 2:
-    print("\tusage: %s <code.vm or dir_with_dotvm_files/>" % sys.argv[0])
+    print("\tusage: %s program.vm" % sys.argv[0])
     exit(0)
 
-  arg = sys.argv[1]
-
-  # TODO: accept a dir instead of file
-  translate(arg, arg.replace(".vm", ".asm"))
+  translate(sys.argv[1], sys.argv[1].replace(".vm", ".asm"))
 
