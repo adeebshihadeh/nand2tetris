@@ -17,8 +17,7 @@ class Parser:
   C_CALL = 8
 
   def __init__(self, fn):
-    # TODO: better input sanitizing?
-    # sanitize vm input. remove empty lines & lines with only comments
+    # remove empty lines & lines with only comments
     self.src = [l for l in open(fn).readlines() if len(l.strip()) and not l.strip().startswith("//")]
     self.cur_line = -1
 
@@ -33,10 +32,10 @@ class Parser:
     # arg2 only used if cmd is C_PUSH, C_POP, C_FUNCTON, or C_CALL
 
     l = self.src[self.cur_line].strip().split(" ")
-    if l[0] in ["add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"]:
+    if l[0] in ("add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"):
       cmd_type = self.C_ARITHMETIC
       arg1 = l[0]
-    elif l[0] in ["push", "pop"]:
+    elif l[0] in ("push", "pop"):
       cmd_type = self.C_PUSH if l[0] == "push" else self.C_POP
       arg1 = l[1]
       arg2 = int(l[2])
@@ -50,43 +49,71 @@ class Parser:
 
 
 class CodeWriter:
-
-  # snippets
-  SP_DEC = "@SP\nM=M-1\n"
-  SP_INC= "@SP\nM=M+1\n"
+  DEC_SP = "@SP\nM=M-1\n"
+  INC_SP= "@SP\nM=M+1\n"
+  POP_INTO_D = "%sA=M\nD=M\n" % DEC_SP
+  POP_INTO_A = "%sA=M\nA=M\n" % DEC_SP
+  PUSH_D = "@SP\nA=M\nM=D\n%s" % INC_SP
 
   def __init__(self):
     self.fn = None
     self.to_write = ""
+    self.cond_cnt = 0
 
   def setFileName(self, fn):
     self.fn = fn
     self.to_write = ""
+    self.cond_cnt = 0
 
   def close(self):
     open(self.fn, "w").write(self.to_write)
     self.to_write = ""
+    self.cond_cnt = 0
 
   def writeArithmetic(self, cmd):
     ret = ""
 
-    # add
-    ret += self.SP_DEC
-    ret += "A=M\n"
-    ret += "D=M\n"
-    ret += self.SP_DEC
-    ret += "A=M\n"
-    ret += "A=M\n"
+    # pop operand off stack
+    ret += self.POP_INTO_D
 
-    ret += "D=D+A\n"
+    if cmd == "neg":
+      ret += "D=-D\n"
+    elif cmd == "not":
+      ret += "D=!D\n"
+    else:
+      # pop another operand off the stack
+      ret += self.POP_INTO_A
 
-    ret += "@SP\n"
-    ret += "A=M\n"
-    ret += "M=D\n"
-    ret += self.SP_INC
+      # do the operation and store in D reg
+      if cmd == "add":
+        ret += "D=D+A\n"
+      elif cmd == "sub":
+        ret += "D=A-D\n"
+      elif cmd == "and":
+        ret += "D=D&A\n"
+      elif cmd == "or":
+        ret += "D=D|A\n"
+      else:
+        cond = {"eq": "JEQ", "gt": "JGT", "lt": "JLT"}.get(cmd)
+
+        ret += "D=A-D\n"
+
+        # TODO: clean this up
+        ret += "@COND_TRUE_%d\n" % self.cond_cnt
+        ret += "D;%s\n" % cond
+        ret += "D=0\n" # 0 is false
+        ret += "@COND_END_%d\n" % self.cond_cnt
+        ret += "0;JMP\n"
+        ret += "(COND_TRUE_%s)\n" % self.cond_cnt
+        ret += "D=-1\n" # -1 is true
+        ret += "(COND_END_%d)\n" % self.cond_cnt
+
+        self.cond_cnt += 1
+
+    # push result onto stack
+    ret += self.PUSH_D
 
     self.to_write += ret  + "\n\n" # two newlines for debugging
-    return ret
 
   def writePushPop(self, cmd, seg, idx):
     ret = ""
@@ -94,13 +121,9 @@ class CodeWriter:
     # push a constant
     ret += "@" + str(idx) + "\n"
     ret += "D=A\n"
-    ret += "@SP\n"
-    ret += "A=M\n"
-    ret += "M=D\n"
-    ret += self.SP_INC
+    ret += self.PUSH_D
 
     self.to_write += ret + "\n\n" # two newlines for debugging
-    #return ret
 
 
 def translate(in_fn, out_fn):
@@ -114,8 +137,8 @@ def translate(in_fn, out_fn):
     cmd, arg1, arg2 = p.parse()
 
     if cmd == Parser.C_ARITHMETIC:
-      cw.writeArithmetic(p.src[p.cur_line])
-    elif cmd in [Parser.C_PUSH, Parser.C_POP]:
+      cw.writeArithmetic(arg1)
+    elif cmd in (Parser.C_PUSH, Parser.C_POP):
       cw.writePushPop(cmd, arg1, arg2)
     else:
       raise NotImplementedError
