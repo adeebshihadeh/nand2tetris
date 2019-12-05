@@ -118,10 +118,36 @@ class CodeWriter:
   def writePushPop(self, cmd, seg, idx):
     ret = ""
 
-    # push a constant
-    ret += "@" + str(idx) + "\n"
-    ret += "D=A\n"
-    ret += self.PUSH_D
+    if seg == "constant":
+      assert cmd != Parser.C_POP
+      ret += "@%d\n" % idx
+      ret += "D=A\n"
+      ret += self.PUSH_D
+    else:
+      if seg in ("temp"):
+        ret += "@R%d\n" % (idx + 5) # temp starts at R5
+
+        # HACK: make thisk cleaner
+        ret += "D=A\n@ADDR\nM=D\n"
+      else:
+        # optimize and skip this if idx is 0?
+        ret += "@%d\n" % idx
+        ret += "D=A\n"
+
+        s = {"local": "LCL", "this": "THIS", "that": "THAT", "argument": "ARG"}.get(seg)
+        ret += "@%s\n" % s
+        ret += "D=M+D\n"
+        ret += "@ADDR\n"
+        ret += "M=D\n"
+
+      if cmd == Parser.C_POP:
+        ret += self.POP_INTO_D
+        ret += "@ADDR\nA=M\n"
+        ret += "M=D\n"
+      else:
+        ret += "@ADDR\nA=M\n"
+        ret += "D=M\n"
+        ret += self.PUSH_D
 
     self.to_write += ret + "\n\n" # two newlines for debugging
 
@@ -155,5 +181,4 @@ if __name__ == "__main__":
 
   # TODO: accept a dir instead of file
   translate(arg, arg.replace(".vm", ".asm"))
-
 
